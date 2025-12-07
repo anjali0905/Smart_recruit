@@ -3,27 +3,35 @@ const router = express.Router();
 require("dotenv").config();
 
 const addOnPrompt = `
-Generate a set of communication assessment questions divided into three categories:
+Generate a set of UNIQUE and DIVERSE communication assessment questions divided into three categories:
 1. Read and Speak
 2. Listen and Type
 3. Topic and Speech
 
-For each category, generate 3-4 questions that follow these guidelines:
+IMPORTANT: Each question must be COMPLETELY DIFFERENT from others in the same category. Ensure maximum variety in topics, difficulty levels, and question types.
+
+For each category, generate 3-4 UNIQUE questions that follow these guidelines:
 
 Read and Speak:
 - Questions that require reading a passage and speaking about it
 - Mix of comprehension and analysis questions
 - Suitable for assessing both reading and speaking skills
+- Vary topics: business, technology, science, literature, current events, etc.
+- Different difficulty levels and question formats
 
 Listen and Type:
 - Questions that involve listening comprehension
 - Scenarios where typing responses are required
 - Mix of direct and analytical responses
+- Diverse scenarios: instructions, conversations, presentations, etc.
+- Different complexity levels
 
 Topic and Speech:
 - Open-ended discussion topics
 - Presentation scenarios
 - Professional communication situations
+- Cover various domains: technology, business, social issues, personal development, etc.
+- Mix of formal and informal speaking contexts
 
 Format the response as a JSON object with this structure:
 {
@@ -41,8 +49,11 @@ Format the response as a JSON object with this structure:
   ]
 }
 
-Ensure each question is clear, professional, and appropriate for a communication assessment context.
-Base the questions around {{prompt}} if provided, otherwise generate general communication assessment questions.`;
+Ensure each question is:
+- Clear, professional, and appropriate for a communication assessment context
+- UNIQUE and different from other questions in the same category
+- Covering diverse topics and scenarios
+- Base the questions around {{prompt}} if provided, otherwise generate general communication assessment questions with maximum variety.`;
 
 router.get("/generateComm", async (req, res) => {
   const prompt = req.query.prompt || "general communication skills";
@@ -55,8 +66,11 @@ router.get("/generateComm", async (req, res) => {
   const genAI = new GoogleGenerativeAI(apiKey);
 
   try {
-    const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
-    const customPrompt = addOnPrompt.replace("{{prompt}}", prompt);
+    const model = genAI.getGenerativeModel({ model: "gemini-2.0-flash" });
+    const timestamp = Date.now();
+    const randomSeed = Math.floor(Math.random() * 10000);
+    const customPrompt = addOnPrompt.replace("{{prompt}}", prompt) + 
+      `\n\nGeneration timestamp: ${timestamp}, seed: ${randomSeed}. Ensure all questions are unique and diverse.`;
     const result = await model.generateContent(customPrompt);
 
     // Extract and parse the raw response

@@ -2,13 +2,21 @@ const express = require("express");
 const router = express.Router();
 require("dotenv").config();
 const listenAndSpeakPrompt = `
-Generate exactly 4 sentences based on the following difficulty level: {{prompt}}
+Generate exactly 4 UNIQUE and DIVERSE sentences based on the following difficulty level: {{prompt}}
+
+IMPORTANT: Each sentence must be COMPLETELY DIFFERENT from the others. Ensure maximum variety in:
+- Topics (science, business, technology, nature, personal, professional, etc.)
+- Sentence structures (simple, complex, compound)
+- Vocabulary and complexity
+- Contexts and scenarios
 
 The sentences should:
 - Be directly usable for listening and speaking practice
 - Match the requested difficulty level
 - Focus on pronunciation and fluency
 - Not include any instructions, only the sentences themselves
+- Cover diverse topics and contexts
+- Use varied vocabulary and sentence patterns
 
 Response format: an array of exactly 4 strings.
 
@@ -18,7 +26,9 @@ Example:
   "She swiftly solved the tricky puzzle.",
   "Thunder rumbled as the storm approached.",
   "His dedication to practice paid off in the finals."
-]`;
+]
+
+Ensure all 4 sentences are unique and cover different topics/contexts.`;
 
 router.get("/generateListenAndSpeak", async (req, res) => {
   const prompt = req.query.prompt || "intermediate level";
@@ -31,8 +41,11 @@ router.get("/generateListenAndSpeak", async (req, res) => {
   const genAI = new GoogleGenerativeAI(apiKey);
 
   try {
-    const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
-    const customPrompt = listenAndSpeakPrompt.replace("{{prompt}}", prompt);
+    const model = genAI.getGenerativeModel({ model: "gemini-2.0-flash" });
+    const timestamp = Date.now();
+    const randomSeed = Math.floor(Math.random() * 10000);
+    const customPrompt = listenAndSpeakPrompt.replace("{{prompt}}", prompt) +
+      `\n\nGeneration timestamp: ${timestamp}, seed: ${randomSeed}. Ensure all sentences are unique and diverse.`;
     const result = await model.generateContent(customPrompt);
     const rawResponse = await result.response.text();
     let jsonString = rawResponse;
@@ -72,10 +85,22 @@ router.get("/generateListenAndSpeak", async (req, res) => {
 module.exports = router;
 
 function createMockListenSpeak(prompt) {
+  const timestamp = Date.now();
+  const topics = [
+    "technology and innovation",
+    "business and entrepreneurship",
+    "science and research",
+    "environmental conservation",
+    "education and learning",
+    "health and wellness",
+    "social issues",
+    "cultural diversity"
+  ];
+  
   return [
-    `Listen to a passage about ${prompt} and repeat the main idea.`,
-    `Listen to a definition related to ${prompt} and rephrase it.`,
-    `Listen to a short story about ${prompt} and summarize it.`,
-    `Listen to instructions about ${prompt} and list the steps.`,
+    `Listen to a passage about ${topics[timestamp % topics.length]} and repeat the main idea.`,
+    `Listen to a definition related to ${topics[(timestamp + 1) % topics.length]} and rephrase it.`,
+    `Listen to a short story about ${topics[(timestamp + 2) % topics.length]} and summarize it.`,
+    `Listen to instructions about ${topics[(timestamp + 3) % topics.length]} and list the steps.`,
   ];
 }

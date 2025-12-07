@@ -65,7 +65,16 @@ export default function HRRound() {
     loader.innerHTML = `\n      <div class=\"loader\"></div>\n    `;
     document.body.appendChild(loader);
 
-    const meetingLink = `${window.location.protocol}//${window.location.host}${window.location.pathname}?roomID=${roomID}&kitToken=${encodeURIComponent(kitToken)}`;
+    // For email links, use IP address so candidates on other devices can access
+    let host = window.location.host;
+    const networkIP = import.meta.env.VITE_NETWORK_IP || "192.168.197.79";
+    
+    // Replace localhost with network IP for email links
+    if (host.includes("localhost") || host.includes("127.0.0.1")) {
+      host = host.replace("localhost", networkIP).replace("127.0.0.1", networkIP);
+    }
+    
+    const meetingLink = `${window.location.protocol}//${host}${window.location.pathname}?roomID=${roomID}&kitToken=${encodeURIComponent(kitToken)}`;
 
     const templateParams = {
       meet_link: meetingLink,

@@ -1,5 +1,12 @@
 const mongoose = require("mongoose");
 
+// Schema for Read and Speak questions (objects with passage, questions, instructions)
+const readAndSpeakQuestionSchema = new mongoose.Schema({
+  passage: { type: String, required: true },
+  questions: { type: [String], default: [] },
+  instructions: { type: String, default: "Read the passage aloud clearly, then answer the comprehension questions." }
+}, { _id: false });
+
 const communicationSchema = new mongoose.Schema({
   userId: {
     type: mongoose.Schema.Types.ObjectId,
@@ -7,15 +14,15 @@ const communicationSchema = new mongoose.Schema({
     required: true,
   },
   readAndSpeak: {
-    type: [String],
+    type: [mongoose.Schema.Types.Mixed], // Can be objects or strings for backward compatibility
     default: [],
   },
   listenAndSpeak: {
-    type: [String],
+    type: [mongoose.Schema.Types.Mixed], // Can be objects or strings
     default: [],
   },
   topicAndSpeech: {
-    type: [String],
+    type: [mongoose.Schema.Types.Mixed], // Can be objects or strings
     default: [],
   },
 }, { timestamps: true });

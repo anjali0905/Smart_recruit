@@ -64,10 +64,20 @@ const CommunicationInfo = () => {
 
 
   const handleSelectGenerated = (question) => {
-    if (selectedGenerated[activeTab].includes(question)) {
+    // For object comparison, use JSON.stringify
+    const questionKey = typeof question === 'object' ? JSON.stringify(question) : question;
+    const isSelected = selectedGenerated[activeTab].some(q => {
+      const qKey = typeof q === 'object' ? JSON.stringify(q) : q;
+      return qKey === questionKey;
+    });
+
+    if (isSelected) {
       setSelectedGenerated({
         ...selectedGenerated,
-        [activeTab]: selectedGenerated[activeTab].filter(q => q !== question)
+        [activeTab]: selectedGenerated[activeTab].filter(q => {
+          const qKey = typeof q === 'object' ? JSON.stringify(q) : q;
+          return qKey !== questionKey;
+        })
       });
     } else {
       setSelectedGenerated({
@@ -288,23 +298,36 @@ const CommunicationInfo = () => {
 
         {/* Generated Questions */}
         <div className="grid grid-cols-2 gap-4">
-          {getGeneratedQuestionsForActiveTab().map((question, index) => (
-            <div
-              key={index}
-              className={`p-4 border rounded-lg cursor-pointer ${selectedGenerated[activeTab].includes(question)
-                ? 'border-green-500 bg-green-50'
-                : 'hover:border-blue-300'
-                }`}
-              onClick={() => handleSelectGenerated(question)}
-            >
-              <div className="flex justify-between items-center">
-                <p>{question}</p>
-                {selectedGenerated[activeTab].includes(question) && (
-                  <Check className="text-green-500" size={20} />
-                )}
+          {getGeneratedQuestionsForActiveTab().map((question, index) => {
+            // Handle both object format (for readAndSpeak) and string format
+            const displayText = typeof question === 'object' && question !== null
+              ? (question.passage ? `${question.passage.substring(0, 100)}...` : JSON.stringify(question))
+              : question;
+            
+            // For comparison, use JSON.stringify for objects
+            const questionKey = typeof question === 'object' ? JSON.stringify(question) : question;
+            const isSelected = selectedGenerated[activeTab].some(q => 
+              typeof q === 'object' ? JSON.stringify(q) === questionKey : q === questionKey
+            );
+
+            return (
+              <div
+                key={index}
+                className={`p-4 border rounded-lg cursor-pointer ${isSelected
+                  ? 'border-green-500 bg-green-50'
+                  : 'hover:border-blue-300'
+                  }`}
+                onClick={() => handleSelectGenerated(question)}
+              >
+                <div className="flex justify-between items-center">
+                  <p className="text-sm">{displayText}</p>
+                  {isSelected && (
+                    <Check className="text-green-500" size={20} />
+                  )}
+                </div>
               </div>
-            </div>
-          ))}
+            );
+          })}
         </div>
       </div>
 
@@ -327,17 +350,24 @@ const CommunicationInfo = () => {
         ))}
 
         {/* Selected Generated Questions */}
-        {selectedGenerated[activeTab].map((question, index) => (
-          <div key={index} className="flex justify-between items-center p-3 mb-2 bg-blue-50 rounded-lg">
-            <p>{question}</p>
-            <button
-              onClick={() => removeSelectedQuestion(question)}
-              className="text-red-500 hover:text-red-700"
-            >
-              <Trash2 size={20} />
-            </button>
-          </div>
-        ))}
+        {selectedGenerated[activeTab].map((question, index) => {
+          // Handle both object format (for readAndSpeak) and string format
+          const displayText = typeof question === 'object' && question !== null
+            ? (question.passage ? `Passage: ${question.passage.substring(0, 80)}...` : JSON.stringify(question))
+            : question;
+          
+          return (
+            <div key={index} className="flex justify-between items-center p-3 mb-2 bg-blue-50 rounded-lg">
+              <p className="text-sm">{displayText}</p>
+              <button
+                onClick={() => removeSelectedQuestion(question)}
+                className="text-red-500 hover:text-red-700"
+              >
+                <Trash2 size={20} />
+              </button>
+            </div>
+          );
+        })}
       </div>
 
       {/* Next Button Section */}

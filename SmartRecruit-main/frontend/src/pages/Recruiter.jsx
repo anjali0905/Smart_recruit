@@ -58,6 +58,13 @@ const RecruiterInfo = () => {
         : null,
     };
 
+    // Validate userId exists
+    if (!data.userId) {
+      setFormErrors({ submit: "User ID not found. Please log in again." });
+      setIsLoading(false);
+      return;
+    }
+
     try {
       const response = await axios.post(`${BACKEND_URL}/updateUser`, data, {
         headers: { "Content-Type": "application/json" },
@@ -79,7 +86,12 @@ const RecruiterInfo = () => {
       }
     } catch (err) {
       console.error("Error:", err);
-      setFormErrors({ submit: "An error occurred while saving your information" });
+      // Show more specific error message
+      const errorMessage = err.response?.data?.message || 
+                          err.response?.data || 
+                          err.message || 
+                          "An error occurred while saving your information";
+      setFormErrors({ submit: errorMessage });
     } finally {
       setIsLoading(false);
     }

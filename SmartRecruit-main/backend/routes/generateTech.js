@@ -3,9 +3,17 @@ const router = express.Router();
 require("dotenv").config();
 
 const addOnPrompt = `
-Generate a set of 4 technical interview questions on {{techType}} DSA problems. Each problem should include:
-- A unique ID for the problem (not serializable).
-- A title describing the problem.
+Generate a set of 4 UNIQUE and DIVERSE technical interview questions on {{techType}} DSA problems. 
+
+IMPORTANT: Each problem must be COMPLETELY DIFFERENT from the others. Avoid similar patterns, topics, or approaches. Ensure maximum variety in:
+- Problem types (arrays, strings, trees, graphs, dynamic programming, etc.)
+- Difficulty levels (mix of easy, medium, and hard)
+- Problem domains (mathematical, algorithmic, data structure manipulation, etc.)
+- Solution approaches (greedy, divide-and-conquer, two-pointer, sliding window, etc.)
+
+Each problem should include:
+- A unique ID for the problem (use format: {{techType}}-{{random}}-{{index}}).
+- A title describing the problem (must be distinct from other problems).
 - A detailed description of the problem, including:
   - Problem statement.
   - Input format.
@@ -32,7 +40,9 @@ Return the set of problems as an array of objects in JSON format, where each obj
       "expectedOutput": "Expected output"
     }
   ]
-}`;
+}
+
+Ensure all 4 problems are distinct and cover different aspects of {{techType}}.`;
 
 router.get("/generateTech", async (req, res) => {
   const techType = req.query.techType;
@@ -63,9 +73,19 @@ router.get("/generateTech", async (req, res) => {
   const genAI = new GoogleGenerativeAI(apiKey);
 
   try {
-    const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
-    const typeAddOnPrompt = addOnPrompt.replace("{{techType}}", techType);
-    const result = await model.generateContent(typeAddOnPrompt);
+    const model = genAI.getGenerativeModel({ model: "gemini-2.0-flash" });
+    // Add timestamp and random seed to ensure variety in each generation
+    const timestamp = Date.now();
+    const randomSeed = Math.floor(Math.random() * 10000);
+    const typeAddOnPrompt = addOnPrompt
+      .replace(/{{techType}}/g, techType)
+      .replace(/{{random}}/g, randomSeed.toString())
+      .replace(/{{index}}/g, timestamp.toString());
+    
+    // Add additional instruction for variety
+    const enhancedPrompt = `${typeAddOnPrompt}\n\nGeneration timestamp: ${timestamp}. Ensure each problem is unique and different from common interview questions.`;
+    
+    const result = await model.generateContent(enhancedPrompt);
 
     // Extract and parse the raw response robustly
     const rawResponse = await result.response.text();
@@ -108,16 +128,48 @@ router.get("/generateTech", async (req, res) => {
 });
 
 function createMockTech(techType) {
-  const make = (i) => ({
-    id: `mock-tech-${Date.now()}-${i}`,
-    title: `${techType || "DSA"} Problem #${i + 1}`,
-    desc: `Solve a simple ${techType || "array"} task.\nInput format: ...\nOutput format: ...\nExample: ...`,
-    testCases: [
-      { input: "1 2 3", expectedOutput: "6" },
-      { input: "2 2", expectedOutput: "4" },
-    ],
-  });
-  return Array.from({ length: 4 }, (_, i) => make(i));
+  const problemTemplates = [
+    {
+      title: "Array Sum",
+      desc: `Calculate the sum of all elements in an array.\nInput format: A single line with space-separated integers.\nOutput format: A single integer representing the sum.\nExample:\nInput: 1 2 3 4 5\nOutput: 15\nConstraints: 1 <= array length <= 1000`,
+      testCases: [
+        { input: "1 2 3", expectedOutput: "6" },
+        { input: "10 20 30", expectedOutput: "60" },
+      ],
+    },
+    {
+      title: "Find Maximum",
+      desc: `Find the maximum element in an array.\nInput format: A single line with space-separated integers.\nOutput format: A single integer representing the maximum.\nExample:\nInput: 3 7 2 9 1\nOutput: 9\nConstraints: 1 <= array length <= 1000`,
+      testCases: [
+        { input: "5 2 8 1", expectedOutput: "8" },
+        { input: "10 20 15", expectedOutput: "20" },
+      ],
+    },
+    {
+      title: "Reverse String",
+      desc: `Reverse a given string.\nInput format: A single string.\nOutput format: The reversed string.\nExample:\nInput: "hello"\nOutput: "olleh"\nConstraints: 1 <= string length <= 1000`,
+      testCases: [
+        { input: "world", expectedOutput: "dlrow" },
+        { input: "coding", expectedOutput: "gnidoc" },
+      ],
+    },
+    {
+      title: "Count Vowels",
+      desc: `Count the number of vowels in a string.\nInput format: A single string.\nOutput format: An integer representing the vowel count.\nExample:\nInput: "hello"\nOutput: 2\nConstraints: 1 <= string length <= 1000`,
+      testCases: [
+        { input: "programming", expectedOutput: "3" },
+        { input: "aeiou", expectedOutput: "5" },
+      ],
+    },
+  ];
+  
+  const timestamp = Date.now();
+  return problemTemplates.map((template, i) => ({
+    id: `mock-tech-${timestamp}-${i}`,
+    title: `${techType || "DSA"} - ${template.title}`,
+    desc: template.desc,
+    testCases: template.testCases,
+  }));
 }
 
 async function fetchTechFromGFG(techType) {

@@ -12,6 +12,7 @@ const corsOptions = {
   origin: [
     process.env.FRONTEND_URL,
     "http://localhost:5173",
+    "http://192.168.197.79:5173", // Network IP for candidates
     "https://smartrecruit.vercel.app", // for quick testing purpose included this hardcoded urls
   ],
   methods: ["GET", "POST", "PUT", "DELETE", "PATCH"],

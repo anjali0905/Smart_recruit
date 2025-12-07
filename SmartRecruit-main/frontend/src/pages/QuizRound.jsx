@@ -92,19 +92,56 @@ const QuizComponent = () => {
     };
   }, []);
 
+  // Only start video when quiz stage begins, not on initial mount
   useEffect(() => {
-    startVideo();
-    loadModels();
-  }, []);
+    if (currentStage === "quiz") {
+      startVideo();
+      loadModels();
+    }
+    return () => {
+      if (currentStage !== "quiz") {
+        closeVideo();
+      }
+    };
+  }, [currentStage]);
 
   const startVideo = () => {
+    // Check if mediaDevices API is available
+    if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+      console.warn("Camera access not available. This may require HTTPS or browser permissions.");
+      // Try legacy API as fallback
+      const getUserMedia = navigator.getUserMedia || 
+                          navigator.webkitGetUserMedia || 
+                          navigator.mozGetUserMedia || 
+                          navigator.msGetUserMedia;
+      
+      if (getUserMedia) {
+        getUserMedia.call(navigator, { video: true }, 
+          (stream) => {
+            if (videoRef.current) {
+              videoRef.current.srcObject = stream;
+            }
+          },
+          (err) => {
+            console.error("Error accessing camera:", err);
+          }
+        );
+      } else {
+        console.error("Camera API not supported in this browser.");
+      }
+      return;
+    }
+
     navigator.mediaDevices
       .getUserMedia({ video: true })
       .then((currentStream) => {
-        videoRef.current.srcObject = currentStream;
+        if (videoRef.current) {
+          videoRef.current.srcObject = currentStream;
+        }
       })
       .catch((err) => {
-        console.error(err);
+        console.error("Error accessing camera:", err);
+        // Don't break the app if camera fails - just log the error
       });
   };
   const closeVideo = () => {
@@ -127,6 +164,10 @@ const QuizComponent = () => {
 
   const takeScreenshot = () => {
     const video = videoRef.current;
+    if (!video || !video.videoWidth || !video.videoHeight) {
+      console.warn("Video not ready for screenshot");
+      return null;
+    }
     const canvas = document.createElement("canvas");
     canvas.width = video.videoWidth;
     canvas.height = video.videoHeight;
@@ -139,7 +180,18 @@ const QuizComponent = () => {
     const video = videoRef.current;
     const canvas = canvasRef.current;
 
+    // Check if video element exists and is ready
+    if (!video || !canvas) {
+      console.warn("Video or canvas element not available for face detection");
+      return;
+    }
+
     const updateDetections = async () => {
+      // Check if video is ready
+      if (!video || !video.videoWidth || !video.videoHeight) {
+        return;
+      }
+
       const detections = await faceapi.detectAllFaces(
         video,
         new faceapi.TinyFaceDetectorOptions({
@@ -249,9 +301,17 @@ const QuizComponent = () => {
 
   const fetchUserInfo = async () => {
     try {
-      const userId = userid;
+      const userId = userid ? userid.trim() : "";
       if (!userId) {
-        console.error("No userId found in localStorage.");
+        console.error("No userId found.");
+        return;
+      }
+
+      // Validate MongoDB ObjectId format before making the request
+      const objectIdPattern = /^[0-9a-fA-F]{24}$/;
+      if (!objectIdPattern.test(userId)) {
+        console.error("Invalid User ID format:", userId);
+        setError("Invalid User ID format. Please check your Secret Key.");
         return;
       }
 
@@ -285,19 +345,57 @@ const QuizComponent = () => {
       setLoading(true);
   
       // 1️⃣ Generate NEW AI Quiz FIRST
-      await axios.post(`${BACKEND_URL}/generateQuiz`, {
+      const generateResponse = await axios.post(`${BACKEND_URL}/generateQuiz`, {
         count: 10,                  // how many questions you want
         type: "roman numbers only", // or jobrole based (we can make dynamic)
-        source: "gfg"               // optional
+        // Removed source: "gfg" to allow AI generation
       });
   
-      // 2️⃣ Then fetch newly generated quiz from DB
-      const response = await axios.get(`${BACKEND_URL}/getQuiz`, {
-        params: { userId: userid },
+      console.log("Generate Quiz Response:", generateResponse.data);
+      
+      // 2️⃣ Use the generated quizzes directly from the response
+      let quizzes = [];
+      if (generateResponse.data.quizzes && Array.isArray(generateResponse.data.quizzes)) {
+        // New format: { success: true, quizzes: [...] }
+        quizzes = generateResponse.data.quizzes;
+      } else if (Array.isArray(generateResponse.data)) {
+        // Old format: direct array
+        quizzes = generateResponse.data;
+      } else {
+        // Fallback: try to fetch from DB
+        const response = await axios.get(`${BACKEND_URL}/getQuiz`, {
+          params: { userId: userid },
+        });
+        if (response.data.quizzes && Array.isArray(response.data.quizzes)) {
+          quizzes = response.data.quizzes;
+        } else if (Array.isArray(response.data)) {
+          quizzes = response.data;
+        }
+      }
+  
+      // Normalize quiz format to ensure all have required fields
+      quizzes = quizzes.map((quiz, index) => {
+        // Handle different response formats
+        return {
+          id: quiz.id || quiz._id || `quiz-${index}`,
+          que: quiz.que || quiz.question || `Question ${index + 1}`,
+          a: quiz.a || quiz.options?.a || "Option A",
+          b: quiz.b || quiz.options?.b || "Option B",
+          c: quiz.c || quiz.options?.c || "Option C",
+          d: quiz.d || quiz.options?.d || "Option D",
+          ans: quiz.ans || quiz.answer || "a",
+        };
       });
   
-      console.log("Quiz Responses : ", response);
-      setExistingQuizzes(response.data);
+      console.log("Quiz Questions (normalized):", quizzes);
+      
+      if (quizzes.length === 0) {
+        setError("No quiz questions available. Please try again.");
+        setLoading(false);
+        return;
+      }
+      
+      setExistingQuizzes(quizzes);
       setCurrentStage("quiz");
       setSubmitted(true);
       setLoading(false);
@@ -328,16 +426,35 @@ const QuizComponent = () => {
 
   const handleQuizSubmit = async () => {
     setIsSubmittingQuiz(true);
-    const userId = userid;
-    const userEmail = email;
-    setemail(email);
+    setError(null); // Clear any previous errors
+    
+    // Trim and validate userId
+    const userId = userid ? userid.trim() : "";
+    const userEmail = email ? email.trim() : "";
 
     if (!userEmail) {
-      setError("Email is required to send the rejection email.");
+      setError("Email is required to submit the quiz.");
+      setIsSubmittingQuiz(false);
+      return;
+    }
+
+    if (!userId) {
+      setError("User ID (Secret Key) is required to submit the quiz.");
+      setIsSubmittingQuiz(false);
+      return;
+    }
+
+    // Validate MongoDB ObjectId format (24 hex characters)
+    const objectIdPattern = /^[0-9a-fA-F]{24}$/;
+    if (!objectIdPattern.test(userId)) {
+      setError("Invalid User ID format. Please check your Secret Key and try again.");
+      setIsSubmittingQuiz(false);
       return;
     }
 
     try {
+      console.log("Submitting quiz with:", { userId, userEmail, score });
+      
       const response = await axios.get(`${BACKEND_URL}/getUserInfo/${userId}`);
       const user = response.data;
       const passingMarks = user.aptitudePassingMarks;
@@ -346,35 +463,43 @@ const QuizComponent = () => {
         `User's passing marks: ${passingMarks}, Your score: ${score}`
       );
 
-      await axios.post(`${BACKEND_URL}/addScore`, {
+      // Store score
+      const scoreResponse = await axios.post(`${BACKEND_URL}/addScore`, {
         userId,
         score,
         candidateEmail: email,
         roundName: "aptitude"
-      })
+      });
+      console.log("Score stored:", scoreResponse.data);
 
-        .then(data => {
-          console.log("score is stored");
-
-          console.log('Data received:', data);
-        })
-        .catch(error => {
-          console.error('Error fetching data:', error);
-        });
-
+      // Update user
       await axios.post(`${BACKEND_URL}/updateUser`, {
         userId,
         userEmail,
         score,
       });
+      console.log("User updated successfully");
 
+      // For email links, use IP address so candidates on other devices can access
+      let frontendUrl = FRONTEND_URL || "http://localhost:5173";
+      const networkIP = import.meta.env.VITE_NETWORK_IP || "192.168.197.79";
+      
+      if (frontendUrl.includes("localhost") || frontendUrl.includes("127.0.0.1")) {
+        // For emails, use IP address so others can access
+        frontendUrl = frontendUrl.replace("localhost", networkIP).replace("127.0.0.1", networkIP);
+      }
+      
+      // Store email in localStorage for communication round
+      localStorage.setItem('candidateEmail', userEmail);
+      localStorage.setItem('candidateName', name);
+      
       const templateParams = {
         subject: "Congratulations! You're Invited to the Communication Round",
         candidate_name: name,
-        user_id: localStorage.getItem("userId"),
+        user_id: userId,
         hr_email: hremail,
         roundName: "Communication Round",
-        tech_link: `${FRONTEND_URL}/communicationRound`,
+        tech_link: `${frontendUrl}/communicationRound`,
         company_name: companyName,
         to_email: userEmail,
         recipient_address: email,
@@ -385,9 +510,9 @@ const QuizComponent = () => {
         console.log("Email sent successfully!");
       } catch (emailError) {
         console.error("Failed to send email:", emailError);
+        // Don't fail the submission if email fails
       }
 
-      setIsSubmittingQuiz(false)
       console.log(`Quiz completed! Your score: ${score}`);
 
       closeVideo();
@@ -395,15 +520,42 @@ const QuizComponent = () => {
       setSubmitted(true);
     } catch (error) {
       console.error("Error submitting quiz:", error);
+      
+      // Provide more specific error messages
+      let errorMessage = "Failed to submit quiz. Please try again.";
+      
+      if (error.response) {
+        const status = error.response.status;
+        const message = error.response.data?.message || error.response.data?.error;
+        
+        if (status === 400 && message) {
+          if (message.includes("Invalid User ID format")) {
+            errorMessage = "Invalid Secret Key format. Please check the Secret Key from your email and try again.";
+          } else {
+            errorMessage = message;
+          }
+        } else if (status === 404) {
+          errorMessage = "User not found. Please check your Secret Key and email, then try again.";
+        } else if (status === 500) {
+          errorMessage = "Server error. Please try again later.";
+        } else if (message) {
+          errorMessage = message;
+        }
+      } else if (error.request) {
+        errorMessage = "Cannot connect to server. Please check your internet connection.";
+      } else if (error.message) {
+        errorMessage = error.message;
+      }
+      
+      setError(errorMessage);
+      alert(`Error submitting quiz: ${errorMessage}`);
     } finally {
       setIsSubmittingQuiz(false);
     }
   };
 
+  // This useEffect is for cleanup only - video starts when quiz begins
   useEffect(() => {
-    startVideo();
-    loadModels();
-
     // Cleanup function
     return () => {
       closeVideo();
@@ -438,7 +590,7 @@ const QuizComponent = () => {
             name="name"
             placeholder="Secret Key"
             value={userid}
-            onChange={(e) => setuserid(e.target.value)}
+            onChange={(e) => setuserid(e.target.value.trim())}
             className={`w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 ${errors.name
               ? "border-red-500 focus:ring-red-300"
               : "border-gray-300 focus:ring-blue-300"
@@ -613,12 +765,13 @@ const QuizComponent = () => {
           ))}
           <button
             onClick={handleQuizSubmit}
-            disabled={
-              isSubmittingQuiz ||
-              loading ||
+            disabled={isSubmittingQuiz || loading}
+            className="w-full mt-6 py-3 px-4 bg-green-500 text-white rounded-md hover:bg-green-600 transition duration-300 ease-in-out disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center"
+            title={
               Object.keys(selectedAnswers).length !== existingQuizzes.length
+                ? `Please answer all ${existingQuizzes.length} questions (${Object.keys(selectedAnswers).length}/${existingQuizzes.length} answered)`
+                : "Submit your quiz"
             }
-            className="w-full mt-6 py-3 px-4 bg-green-500 text-white rounded-md hover:bg-green-600 transition duration-300 ease-in-out disabled:opacity-50 flex items-center justify-center"
           >
             {isSubmittingQuiz ? (
               <>
@@ -636,7 +789,14 @@ const QuizComponent = () => {
                 <span>Submitting Quiz...</span>
               </>
             ) : (
-              "Submit Quiz"
+              <>
+                Submit Quiz
+                {Object.keys(selectedAnswers).length !== existingQuizzes.length && (
+                  <span className="ml-2 text-sm opacity-75">
+                    ({Object.keys(selectedAnswers).length}/{existingQuizzes.length} answered)
+                  </span>
+                )}
+              </>
             )}
           </button>
         </>

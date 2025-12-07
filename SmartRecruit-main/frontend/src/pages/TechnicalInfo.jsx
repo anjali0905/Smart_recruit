@@ -493,6 +493,46 @@ len
             </div>
           </>
         )}
+
+        {selectedProblems.length > 0 && (
+          <div className="mt-6 bg-gray-50 p-4 rounded-lg flex justify-between items-center">
+            <div className="flex items-center space-x-4">
+              <div className="flex items-center space-x-2">
+                <label className="text-gray-700 font-medium">
+                  Passing Marks:
+                </label>
+                <input
+                  type="number"
+                  min="0"
+                  max={selectedProblems.length}
+                  value={passingMarks}
+                  onChange={(e) =>
+                    setPassingMarks(
+                      Math.min(
+                        Math.max(parseInt(e.target.value, 10), 0),
+                        selectedProblems.length
+                      )
+                    )
+                  }
+                  className="border rounded px-2 py-1 w-20 focus:ring-2 focus:ring-blue-500"
+                />
+                <span className="text-gray-600 text-sm">
+                  ({passingMarks}/{selectedProblems.length})
+                </span>
+              </div>
+              <span className="text-gray-600 text-sm">
+                {selectedProblems.length} problem{selectedProblems.length !== 1 ? 's' : ''} selected
+              </span>
+            </div>
+            <button
+              onClick={nextRound}
+              className="flex items-center bg-blue-500 text-white px-6 py-2 rounded hover:bg-blue-600 transition-all"
+            >
+              Next Round
+              <ChevronRight className="ml-2" size={18} />
+            </button>
+          </div>
+        )}
       </div>
     </div>
   );

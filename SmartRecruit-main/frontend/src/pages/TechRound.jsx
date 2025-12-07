@@ -77,29 +77,8 @@ const TechRound = () => {
   const handleLoginSubmit = async (e) => {
     e.preventDefault();
 
-    try {
-      if (!userId.trim()) {
-        console.error("No userId found.");
-        alert("User ID is required.");
-        return;
-      }
-
-      const response = await axios.get(`${BACKEND_URL}/getUserInfo/${userId}`);
-      const emails =
-        response.data.candidateData?.map((candidate) => candidate.email) || [];
-      setCandidatesEmails(emails);
-
-      const emailExists = emails.some(
-        (candidateEmail) => candidateEmail === email
-      );
-
-      if (!emailExists) {
-        alert("Email does not exist. Please enter a valid email.");
-        return;
-      }
-    } catch (error) {
-      console.error("Error fetching user info:", error);
-      alert("Failed to fetch user info. Please try again later.");
+    if (!userId || !userId.trim()) {
+      setLoginError("User ID is required.");
       return;
     }
 
@@ -113,22 +92,99 @@ const TechRound = () => {
       return;
     }
 
+    try {
+      // Trim and validate userId before API call
+      const trimmedUserId = userId.trim();
+      
+      // Validate MongoDB ObjectId format (24 hex characters)
+      const objectIdPattern = /^[0-9a-fA-F]{24}$/;
+      if (!objectIdPattern.test(trimmedUserId)) {
+        setLoginError("Invalid Secret Key format. Please check the Secret Key from your email and try again.");
+        return;
+      }
+
+      const response = await axios.get(`${BACKEND_URL}/getUserInfo/${trimmedUserId}`);
+      
+      if (!response.data) {
+        throw new Error("Invalid response from server");
+      }
+
+      const emails =
+        response.data.candidateData?.map((candidate) => candidate.email) || [];
+      setCandidatesEmails(emails);
+
+      // Only validate email if candidateData exists and has emails
+      if (emails.length > 0) {
+        const emailExists = emails.some(
+          (candidateEmail) => candidateEmail === email
+        );
+
+        if (!emailExists) {
+          setLoginError("Email does not match any candidate in this recruitment. Please check your email.");
+          return;
+        }
+      } else {
+        // If no candidate data, allow login but warn
+        console.warn("No candidate data found, allowing login anyway");
+      }
+    } catch (error) {
+      console.error("Error fetching user info:", error);
+      
+      // Provide more specific error messages
+      if (error.response) {
+        // Server responded with error status
+        if (error.response.status === 400) {
+          const errorMsg = error.response.data?.message || "Invalid User ID format";
+          setLoginError(errorMsg);
+        } else if (error.response.status === 404) {
+          setLoginError("User ID not found. Please check your secret key.");
+        } else if (error.response.status === 500) {
+          const errorMsg = error.response.data?.message || error.response.data?.error || "Server error. Please try again later.";
+          setLoginError(errorMsg);
+        } else {
+          setLoginError(`Error: ${error.response.data?.message || "Failed to verify user info"}`);
+        }
+      } else if (error.request) {
+        // Request was made but no response received
+        setLoginError("Cannot connect to server. Please check your internet connection.");
+      } else {
+        // Something else happened
+        setLoginError(`Error: ${error.message || "Failed to fetch user info"}`);
+      }
+      return;
+    }
+
+    // Store user data in localStorage (use trimmed userId)
+    const trimmedUserId = userId.trim();
     localStorage.setItem("userName", name);
-    localStorage.setItem("technicalUserId", userId);
+    localStorage.setItem("technicalUserId", trimmedUserId);
     localStorage.setItem("technicalUserEmail", email);
 
     isPasteAllowed = false;
 
+    // Try to fetch tech time, but don't block login if it fails
     try {
-      const response = await axios.get(`${BACKEND_URL}/getUserInfo/${userId}`);
-      const techTime = response.data.techTime || 0;
-      localStorage.setItem("techTime", techTime);
+      // Use trimmedUserId that was already validated above
+      const objectIdPattern = /^[0-9a-fA-F]{24}$/;
+      if (objectIdPattern.test(trimmedUserId)) {
+        const response = await axios.get(`${BACKEND_URL}/getUserInfo/${trimmedUserId}`);
+        if (response.data) {
+          const techTime = response.data.techTime || 0;
+          localStorage.setItem("techTime", techTime);
+        }
+      } else {
+        console.warn("Invalid userId format, using default tech time");
+        localStorage.setItem("techTime", "60"); // Default 60 minutes
+      }
     } catch (error) {
-      console.error("Error fetching user info:", error);
+      console.warn("Could not fetch tech time, using default:", error);
+      // Use default time if fetch fails
+      localStorage.setItem("techTime", "60"); // Default 60 minutes
     }
 
     setShowLoginForm(false);
     setLoading(false);
+    setLoginError(""); // Clear any errors
   };
 
   // Keep all existing useEffect hooks from TechRound component
@@ -249,11 +305,20 @@ const TechRound = () => {
       const response = await axios.post(`${BACKEND_URL}/updateUser`, userData);
       console.log(response);
 
+      // For email links, use IP address so candidates on other devices can access
+      let frontendUrl = FRONTEND_URL || "http://localhost:5173";
+      const networkIP = import.meta.env.VITE_NETWORK_IP || "192.168.197.79";
+      
+      if (frontendUrl.includes("localhost") || frontendUrl.includes("127.0.0.1")) {
+        // For emails, use IP address so others can access
+        frontendUrl = frontendUrl.replace("localhost", networkIP).replace("127.0.0.1", networkIP);
+      }
+      
       // Handle HR email if user passed
       const templateParams = {
         to_email: email,
         jobRole: jobRole,
-        linkForNextRound: `${FRONTEND_URL}/hrRoundEntrance`,
+        linkForNextRound: `${frontendUrl}/hrRoundEntrance`,
         companyName: companyName,
       };
 
@@ -279,13 +344,21 @@ const TechRound = () => {
     const initializeUserData = async () => {
       try {
         const userId = localStorage.getItem("technicalUserId");
-        if (!userId) {
+        if (!userId || !userId.trim()) {
           console.error("No userId found in localStorage");
           return;
         }
 
+        const trimmedUserId = userId.trim();
+        // Validate ObjectId format before making request
+        const objectIdPattern = /^[0-9a-fA-F]{24}$/;
+        if (!objectIdPattern.test(trimmedUserId)) {
+          console.error("Invalid userId format in localStorage");
+          return;
+        }
+
         const response = await axios.get(
-          `${BACKEND_URL}/getUserInfo/${userId}`
+          `${BACKEND_URL}/getUserInfo/${trimmedUserId}`
         );
         const userData = response.data;
 
@@ -619,7 +692,7 @@ const TechRound = () => {
                 type="text"
                 id="userId"
                 value={userId}
-                onChange={(e) => setUserId(e.target.value)}
+                onChange={(e) => setUserId(e.target.value.trim())}
                 placeholder="Enter your user ID"
                 className="w-full p-3 rounded-lg bg-gray-100 border-gray-300 text-gray-800"
               />
@@ -638,8 +711,8 @@ const TechRound = () => {
               />
             </div>
             {loginError && (
-              <div className="mb-4 p-3 rounded-lg text-center bg-red-100 text-red-600">
-                {loginError}
+              <div className="mb-4 p-3 rounded-lg text-center bg-red-100 text-red-600 border border-red-300">
+                <strong>Error:</strong> {loginError}
               </div>
             )}
             <button className="w-full p-3 rounded-lg transition-colors bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 text-white">
@@ -698,24 +771,100 @@ const TechRound = () => {
 
     try {
       const currentProblem = problems[currentProblemIndex];
+      
+      // Validate required data
+      if (!currentProblem) {
+        setError("No problem selected. Please select a problem.");
+        setSubmitIsRunning(false);
+        return;
+      }
+
+      if (!code || !code.trim()) {
+        setError("Please write some code before submitting.");
+        setSubmitIsRunning(false);
+        return;
+      }
+
+      if (!currentProblem.title || !currentProblem.desc) {
+        setError("Problem data is incomplete. Please refresh the page.");
+        setSubmitIsRunning(false);
+        return;
+      }
 
       const response = await axios.post(`${BACKEND_URL}/checkTechSolution`, {
         title: currentProblem.title,
         desc: currentProblem.desc,
-        code: code,
+        code: code.trim(),
       });
 
+      // Check if response has the expected structure
+      if (!response.data) {
+        throw new Error("Invalid response from server");
+      }
+
+      // Handle both success and error responses
+      if (response.data.success === false) {
+        setError(response.data.error || "Evaluation failed. Please check your code.");
+        setOutput("");
+        setSubmitIsRunning(false);
+        return;
+      }
+
       // Update score only if solution is correct
-      if (response.data.cleanedResponse.success) {
+      const isSuccess = response.data.cleanedResponse && response.data.cleanedResponse.success;
+      if (isSuccess) {
         setCurrentlyScored((prev) => prev + 1);
       }
 
-      setOutput(
-        response.data.cleanedResponse.summary || "Evaluation successful"
-      );
+      const summary = response.data.cleanedResponse?.summary || "Evaluation successful";
+      setOutput(summary);
+      
+      // Clear error if submission was successful
+      setError(null);
+
+      // Show success message with instructions
+      if (isSuccess) {
+        const currentProblemNum = currentProblemIndex + 1;
+        const totalProblems = problems.length;
+        const remainingProblems = totalProblems - currentProblemNum;
+        
+        if (remainingProblems > 0) {
+          alert(
+            `✓ Problem ${currentProblemNum} solved successfully!\n\n` +
+            `You have ${remainingProblems} more problem(s) to solve.\n\n` +
+            `Click the next arrow (→) to move to the next problem, or continue working on other problems.\n\n` +
+            `When you're done with all problems, click "End Session" to submit.`
+          );
+        } else {
+          alert(
+            `✓ Congratulations! All problems have been solved!\n\n` +
+            `You can review your solutions or click "End Session" to submit your final answers.\n\n` +
+            `Note: Make sure you've solved all problems before ending the session.`
+          );
+        }
+      }
     } catch (error) {
       console.error("Error during submission:", error);
-      setError("An error occurred while evaluating your code");
+      
+      // Provide more specific error messages
+      if (error.response) {
+        // Server responded with error status
+        const errorMessage = error.response.data?.error || 
+                            error.response.data?.message ||
+                            "Server error while evaluating your code";
+        setError(errorMessage);
+        
+        // Also show in output if available
+        if (error.response.data?.details) {
+          setOutput(error.response.data.details);
+        }
+      } else if (error.request) {
+        // Request was made but no response received
+        setError("Cannot connect to server. Please check your internet connection and try again.");
+      } else {
+        // Something else happened
+        setError(error.message || "An error occurred while evaluating your code. Please try again.");
+      }
     } finally {
       setSubmitIsRunning(false);
     }

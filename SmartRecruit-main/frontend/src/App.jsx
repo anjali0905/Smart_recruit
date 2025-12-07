@@ -44,15 +44,18 @@ const App = () => {
         <Route path="/candidateUpload" element={<ProtectedRoute><CandidateUpload /></ProtectedRoute>} />
         <Route path="/jobs" element={<ProtectedRoute><AllJobsDisplay /></ProtectedRoute>} />
         <Route path="/roundSelection" element={<ProtectedRoute><RoundSelection /></ProtectedRoute>} />
-        <Route path="/quizRound" element={<ProtectedRoute><QuizComponent /></ProtectedRoute>} />
+        {/* Public routes for candidates - they have their own login forms */}
+        <Route path="/quizRound" element={<QuizComponent />} />
+        <Route path="/techRound" element={<TechRound />} />
         <Route path="/dashboard" element={<ProtectedRoute><RecruitmentDashboard /></ProtectedRoute>} />
-        <Route path="/techRound" element={<ProtectedRoute><TechRound /></ProtectedRoute>} />
         <Route path="/techInfo" element={<ProtectedRoute><TechnicalInfo /></ProtectedRoute>} />
-        <Route path="/hrRoundEntrance" element={<ProtectedRoute><HRRoundEntrance /></ProtectedRoute>} />
-        <Route path="/hrRound/:id" element={<ProtectedRoute><HRRound /></ProtectedRoute>} />
+        {/* Public routes for candidates - HR round access */}
+        <Route path="/hrRoundEntrance" element={<HRRoundEntrance />} />
+        <Route path="/hrRound/:id" element={<HRRound />} />
         <Route path="/chat" element={<ProtectedRoute><Chat /></ProtectedRoute>} />
         <Route path="/jobApplication/:jobId" element={<ProtectedRoute><JobApplication /></ProtectedRoute>} />
-        <Route path="/communicationRound" element={<ProtectedRoute><CommunicationRound /></ProtectedRoute>} />
+        {/* Public route for candidates - has its own login form */}
+        <Route path="/communicationRound" element={<CommunicationRound />} />
         <Route path="/communicationInfo" element={<ProtectedRoute><CommunicationInfo /></ProtectedRoute>} />
         <Route path="/jobPosting" element={<ProtectedRoute><JobPosting /></ProtectedRoute>} />
       </Routes>

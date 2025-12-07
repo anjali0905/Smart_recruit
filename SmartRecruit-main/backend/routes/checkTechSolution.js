@@ -7,16 +7,32 @@ const { GoogleGenerativeAI } = require("@google/generative-ai");
 router.post("/checkTechSolution", async (req, res) => {
   const { title, desc, code } = req.body;
 
-  if (!title || !desc || !code) {
+  // Validate required fields with specific messages
+  if (!title || !title.trim()) {
     return res
       .status(400)
-      .json({ success: false, error: "Missing required fields" });
+      .json({ success: false, error: "Problem title is required" });
+  }
+
+  if (!desc || !desc.trim()) {
+    return res
+      .status(400)
+      .json({ success: false, error: "Problem description is required" });
+  }
+
+  if (!code || !code.trim()) {
+    return res
+      .status(400)
+      .json({ success: false, error: "Code cannot be empty. Please write some code before submitting." });
   }
 
   const apiKey = process.env.GEN_AI_API_KEY;
   if (!apiKey) {
     console.error("GEN_AI_API_KEY is not set in environment.");
-    return res.status(500).json({ success: false, error: "Server misconfiguration: missing AI API key" });
+    return res.status(500).json({ 
+      success: false, 
+      error: "Server misconfiguration: AI evaluation service is not available. Please contact support." 
+    });
   }
   const genAI = new GoogleGenerativeAI(apiKey);
 
@@ -38,8 +54,23 @@ router.post("/checkTechSolution", async (req, res) => {
   `;
 
   try {
-    const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
-    const result = await model.generateContent(addOnPrompt);
+    // Use gemini-2.0-flash which is available and supports generateContent
+    // Fallback to gemini-flash-latest if needed
+    let model;
+    let result;
+    try {
+      model = genAI.getGenerativeModel({ model: "gemini-2.0-flash" });
+      result = await model.generateContent(addOnPrompt);
+    } catch (error1) {
+      console.warn("gemini-2.0-flash failed, trying gemini-flash-latest:", error1.message);
+      try {
+        model = genAI.getGenerativeModel({ model: "gemini-flash-latest" });
+        result = await model.generateContent(addOnPrompt);
+      } catch (error2) {
+        console.error("Both models failed. Error 1:", error1.message, "Error 2:", error2.message);
+        throw error2;
+      }
+    }
 
     // Get the raw response text
     const rawResponse = await result.response.text();
@@ -66,14 +97,49 @@ router.post("/checkTechSolution", async (req, res) => {
       const cleanedResponse = JSON.parse(jsonString);
       res.status(200).json({ success: true, cleanedResponse });
     } catch (parseError) {
-      console.error("Error parsing response:", parseError, { rawResponse });
-      res.status(502).json({ success: false, error: "AI response parsing failed" });
+      console.error("Error parsing AI response:", parseError);
+      console.error("Raw response:", rawResponse);
+      res.status(502).json({ 
+        success: false, 
+        error: "Failed to process evaluation response. Please try again." 
+      });
     }
   } catch (error) {
     console.error("Error evaluating solution:", error);
-    res
-      .status(500)
-      .json({ success: false, error: "Failed to evaluate the solution" });
+    console.error("Error details:", {
+      message: error.message,
+      code: error.code,
+      status: error.status,
+      stack: error.stack
+    });
+    
+    // Provide more specific error messages
+    let errorMessage = "Failed to evaluate the solution";
+    let statusCode = 500;
+    
+    if (error.message) {
+      if (error.message.includes("API key") || error.message.includes("401") || error.message.includes("authentication") || error.message.includes("unauthorized")) {
+        errorMessage = "AI service authentication failed. Please check your API key configuration.";
+        statusCode = 401;
+      } else if (error.message.includes("403") || error.message.includes("forbidden")) {
+        errorMessage = "AI service access denied. Please check API key permissions.";
+        statusCode = 403;
+      } else if (error.message.includes("timeout") || error.message.includes("ECONNRESET")) {
+        errorMessage = "Request timed out. Please try again.";
+        statusCode = 504;
+      } else if (error.message.includes("quota") || error.message.includes("limit") || error.message.includes("429")) {
+        errorMessage = "AI service quota exceeded. Please try again later.";
+        statusCode = 429;
+      } else {
+        errorMessage = `Evaluation error: ${error.message}`;
+      }
+    }
+    
+    res.status(statusCode).json({ 
+      success: false, 
+      error: errorMessage,
+      details: process.env.NODE_ENV === 'development' ? error.message : undefined
+    });
   }
 });
 

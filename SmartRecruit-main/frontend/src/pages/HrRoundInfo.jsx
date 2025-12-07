@@ -54,6 +54,13 @@ export default function HRRoundInfo() {
     const candidateData = candidatesEmail;
     console.log("Emails to be sent: ", candidateData);
 
+    // Validate that userId exists before sending emails
+    const userId = localStorage.getItem("userId");
+    if (!userId) {
+      alert("Error: User ID (Secret Key) not found. Please log in again.");
+      return;
+    }
+
     const companyName = localStorage.getItem("companyName") || "Your Company";
     const HRemail = localStorage.getItem("email") || "hr@yourcompany.com";
 
@@ -61,9 +68,9 @@ export default function HRRoundInfo() {
     const aptitudeDuration = localStorage.getItem("aptitudeDuration");
     const technicalDuration = localStorage.getItem("technicalDuration");
 
-    // If no candidate data found in localStorage
-    if (candidateData.length === 0) {
-      alert("No candidate data found in localStorage");
+    // If no candidate data found
+    if (!candidateData || candidateData.length === 0) {
+      alert("No candidate emails found. Please add candidates first.");
       return;
     }
 
@@ -72,19 +79,46 @@ export default function HRRoundInfo() {
     const testType = aptitudeDuration
       ? "Aptitude Test with Reasoning"
       : "Technical Test";
+    
+    // For email links, use IP address so candidates on other devices can access
+    // Keep HTTP for local development, only replace localhost with IP
+    let frontendUrl = VITE_FRONTEND_URL || "http://localhost:5173";
+    const networkIP = import.meta.env.VITE_NETWORK_IP || "192.168.197.79";
+    
+    if (frontendUrl.includes("localhost") || frontendUrl.includes("127.0.0.1")) {
+      // For emails, use IP address so others can access
+      frontendUrl = frontendUrl.replace("localhost", networkIP).replace("127.0.0.1", networkIP);
+    }
+    
     const testLink = aptitudeDuration
-      ? `${VITE_FRONTEND_URL}/quizRound`
-      : `${VITE_FRONTEND_URL}/techRound`;
+      ? `${frontendUrl}/quizRound`
+      : `${frontendUrl}/techRound`;
     const subject = `${testType} Invitation for ${companyName}`;
 
     // Function to delay execution for rate limiting
     const delay = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
+    let successCount = 0;
+    let failCount = 0;
+    const failedEmails = [];
+
     try {
       for (const email of candidateData) {
+        // Validate email format
+        if (!email || !email.includes("@")) {
+          console.warn(`Invalid email format: ${email}`);
+          failCount++;
+          failedEmails.push(email);
+          continue;
+        }
+
+        // userId is already validated at the start, use it here
         const templateParams = {
           candidateName: "Candidate", // Since you only have emails, use a generic name
-          user_id: localStorage.getItem("userId"),
+          user_id: userId, // Secret key for candidates to use
+          secretKey: userId, // Also include as secretKey for clarity
+          secret_key: userId, // Alternative naming for email template
+          userId: userId, // Another alternative
           companyName,
           dateAndTime: "12th Dec 2024, 10:00 AM", // Example date and time
           duration: duration || "60", // Use duration from localStorage, or fallback to 60 minutes
@@ -97,19 +131,29 @@ export default function HRRoundInfo() {
 
         try {
           await sendEmail(templateParams); // Attempt to send the email
-          console.log(`Email sent successfully to ${email}`);
+          console.log(`✓ Email sent successfully to ${email}`);
+          successCount++;
         } catch (error) {
-          console.error(`Error sending email to ${email}:`, error);
+          console.error(`✗ Error sending email to ${email}:`, error);
+          failCount++;
+          failedEmails.push(email);
         }
 
-        // Delay between email sends to avoid rate limits (1 second in this example)
+        // Delay between email sends to avoid rate limits (800ms delay)
         await delay(800);
       }
 
-      alert("Emails have been successfully sent to all candidates.");
+      // Show detailed results
+      if (successCount > 0 && failCount === 0) {
+        alert(`✓ Successfully sent emails to all ${successCount} candidate(s).`);
+      } else if (successCount > 0 && failCount > 0) {
+        alert(`⚠ Sent emails to ${successCount} candidate(s). Failed to send to ${failCount} candidate(s).\n\nFailed emails: ${failedEmails.join(", ")}`);
+      } else {
+        alert(`✗ Failed to send emails to all candidates.\n\nFailed emails: ${failedEmails.join(", ")}`);
+      }
     } catch (error) {
       console.error("Error sending emails:", error);
-      alert("An error occurred while sending emails. Please try again.");
+      alert(`An error occurred while sending emails: ${error.message || "Please try again."}`);
     }
   };
 

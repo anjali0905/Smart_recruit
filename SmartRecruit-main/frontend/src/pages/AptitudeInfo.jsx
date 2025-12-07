@@ -155,7 +155,8 @@ export default function AptitudeInfo() {
     setLoader(true);
     axios
       .get(`${BACKEND_URL}/generateQuiz`, {
-        params: { quizType: quizGenerationType, source: 'gfg' },
+        params: { quizType: quizGenerationType, count: 10 },
+        // Removed source: 'gfg' to allow AI generation
       })
       .then((response) => {
         const data = Array.isArray(response.data) ? response.data : (Array.isArray(response.data?.quizzes) ? response.data.quizzes : []);

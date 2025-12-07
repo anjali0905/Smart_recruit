@@ -179,9 +179,19 @@ function safeJSONParse(text) {
 /**
  * Function to generate a single MCQ using AI
  */
-async function generateMCQ(type, client) {
+async function generateMCQ(type, client, index = 0, total = 10) {
+  const timestamp = Date.now();
+  const randomSeed = Math.floor(Math.random() * 10000);
   const prompt = `
-Generate 1 multiple-choice ${type} aptitude question.
+Generate 1 UNIQUE and DIVERSE multiple-choice ${type} aptitude question.
+
+IMPORTANT: This is question ${index + 1} of ${total}. Ensure this question is COMPLETELY DIFFERENT from any other questions in the set. Avoid similar topics, patterns, or difficulty levels.
+
+Requirements:
+- The question must be unique and not repeat common patterns
+- Cover different aspects of ${type} (logical reasoning, mathematical, analytical, etc.)
+- Vary the difficulty and question types
+- Ensure maximum diversity across all ${total} questions
 
 Strictly return ONLY JSON in the format:
 
@@ -201,6 +211,7 @@ Rules:
 - Do NOT include explanations.
 - Do NOT include markdown.
 - Output strictly valid JSON only.
+- Generation timestamp: ${timestamp}, seed: ${randomSeed}
   `;
 
   const completion = await client.chat.completions.create({
@@ -238,16 +249,71 @@ Rules:
  * Helper: create mock quizzes when API key is missing or errors occur
  */
 function createMockQuiz(type = "aptitude", count = 10) {
-  const base = (i) => ({
-    id: `mock-${Date.now()}-${i}`,
-    que: `(${type}) Sample question #${i + 1}: What comes next in the sequence?`,
-    a: "Option A",
-    b: "Option B",
-    c: "Option C",
-    d: "Option D",
-    ans: ["a", "b", "c", "d"][i % 4],
+  const timestamp = Date.now();
+  const randomSeed = Math.floor(Math.random() * 10000);
+  
+  // Diverse question templates based on type
+  const getQuestionTemplates = (quizType) => {
+    const lowerType = (quizType || "").toLowerCase();
+    
+    if (lowerType.includes("roman") || lowerType.includes("roman numbers")) {
+      return [
+        { que: "What is the Roman numeral for 15?", options: ["XV", "XIV", "XVI", "XIII"], ans: "a" },
+        { que: "Convert XL to decimal number.", options: ["40", "50", "60", "30"], ans: "a" },
+        { que: "What is the Roman numeral for 99?", options: ["XCIX", "IC", "LXLIX", "XCXI"], ans: "a" },
+        { que: "Convert CCL to decimal number.", options: ["250", "200", "300", "150"], ans: "a" },
+        { que: "What is the Roman numeral for 444?", options: ["CDXLIV", "CCCCXLIV", "CDXLIIII", "CCCCXLIIII"], ans: "a" },
+        { que: "Convert MCMXCIV to decimal number.", options: ["1994", "1996", "1992", "1998"], ans: "a" },
+        { que: "What is the Roman numeral for 27?", options: ["XXVII", "XXVIII", "XXVI", "XXIX"], ans: "a" },
+        { que: "Convert DCCL to decimal number.", options: ["750", "700", "800", "650"], ans: "a" },
+        { que: "What is the Roman numeral for 88?", options: ["LXXXVIII", "LXXXVII", "LXXXIX", "LXXXVI"], ans: "a" },
+        { que: "Convert MMXXIV to decimal number.", options: ["2024", "2022", "2026", "2020"], ans: "a" },
+        { que: "What is the Roman numeral for 156?", options: ["CLVI", "CLV", "CLVII", "CLIV"], ans: "a" },
+        { que: "Convert CDXLV to decimal number.", options: ["445", "455", "435", "465"], ans: "a" },
+        { que: "What is the Roman numeral for 333?", options: ["CCCXXXIII", "CCCXXXII", "CCCXXXIV", "CCCXXX"], ans: "a" },
+        { que: "Convert LXXXVIII to decimal number.", options: ["88", "78", "98", "68"], ans: "a" },
+        { que: "What is the Roman numeral for 777?", options: ["DCCLXXVII", "DCCLXXVI", "DCCLXXVIII", "DCCLXXV"], ans: "a" },
+      ];
+    }
+    
+    // General aptitude questions
+    return [
+      { que: "If a train travels 120 km in 2 hours, what is its average speed?", options: ["60 km/h", "50 km/h", "70 km/h", "55 km/h"], ans: "a" },
+      { que: "What is 25% of 200?", options: ["50", "40", "60", "45"], ans: "a" },
+      { que: "If 3x + 5 = 20, what is the value of x?", options: ["5", "4", "6", "7"], ans: "a" },
+      { que: "What is the next number in the sequence: 2, 4, 8, 16, ?", options: ["32", "24", "28", "30"], ans: "a" },
+      { que: "A rectangle has length 8 cm and width 5 cm. What is its area?", options: ["40 cm²", "35 cm²", "45 cm²", "30 cm²"], ans: "a" },
+      { que: "If 5 workers can complete a task in 10 days, how many days will 10 workers take?", options: ["5 days", "10 days", "15 days", "20 days"], ans: "a" },
+      { que: "What is the square root of 144?", options: ["12", "11", "13", "14"], ans: "a" },
+      { que: "If a number is increased by 20% and becomes 120, what was the original number?", options: ["100", "110", "90", "95"], ans: "a" },
+      { que: "What is 15 × 8?", options: ["120", "115", "125", "130"], ans: "a" },
+      { que: "If the ratio of boys to girls is 3:2 and there are 30 boys, how many girls are there?", options: ["20", "25", "15", "18"], ans: "a" },
+      { que: "What is the value of 2³ + 3²?", options: ["17", "15", "19", "13"], ans: "a" },
+      { que: "A shop offers 15% discount. If an item costs $100, what is the discounted price?", options: ["$85", "$80", "$90", "$75"], ans: "a" },
+      { que: "What is the next prime number after 17?", options: ["19", "18", "20", "21"], ans: "a" },
+      { que: "If 4x = 28, what is x?", options: ["7", "6", "8", "9"], ans: "a" },
+      { que: "What is the sum of angles in a triangle?", options: ["180°", "90°", "360°", "270°"], ans: "a" },
+    ];
+  };
+  
+  const templates = getQuestionTemplates(type);
+  const usedIndices = new Set();
+  
+  return Array.from({ length: count }, (_, i) => {
+    // Use modulo to cycle through templates, but add randomness
+    const templateIndex = (timestamp + randomSeed + i) % templates.length;
+    const template = templates[templateIndex];
+    
+    return {
+      id: `mock-${timestamp}-${randomSeed}-${i}`,
+      que: template.que,
+      a: template.options[0],
+      b: template.options[1],
+      c: template.options[2],
+      d: template.options[3],
+      ans: template.ans,
+    };
   });
-  return Array.from({ length: count }, (_, i) => base(i));
 }
 
 /**
@@ -272,8 +338,9 @@ async function handleGenerateQuiz(req, res) {
     });
   }
 
-  // If forced mock or source=gfg, return mock immediately
-  if (forceMock || (source || "").toLowerCase() === "gfg") {
+  // If forced mock, return mock immediately
+  // But try AI generation even if source=gfg (GFG scraping is not reliable)
+  if (forceMock) {
     return res.status(200).json({
       success: true,
       count,
@@ -281,9 +348,7 @@ async function handleGenerateQuiz(req, res) {
       source,
       quizzes: createMockQuiz(type, count),
       mock: true,
-      note: forceMock
-        ? "QUIZ_FORCE_MOCK enabled; returning mock quiz."
-        : "GFG source not available; returning mock quiz.",
+      note: "QUIZ_FORCE_MOCK enabled; returning mock quiz.",
     });
   }
 
@@ -306,8 +371,12 @@ async function handleGenerateQuiz(req, res) {
   try {
     const quizzes = [];
     for (let i = 0; i < count; i++) {
-      const quiz = await generateMCQ(type, client);
+      const quiz = await generateMCQ(type, client, i, count);
       quizzes.push(quiz);
+      // Add small delay to ensure variety in AI responses
+      if (i < count - 1) {
+        await new Promise(resolve => setTimeout(resolve, 100));
+      }
     }
 
     return res.status(200).json({

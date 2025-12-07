@@ -30,6 +30,11 @@ router.post("/updateUser", async (req, res) => {
     technicalScore,
   } = req.body;
 
+  // Validate userId
+  if (!userId) {
+    return res.status(400).json({ message: "User ID is required" });
+  }
+
   console.log(
     "Data of technical round came to backend : ",
     userId,
@@ -41,7 +46,7 @@ router.post("/updateUser", async (req, res) => {
   try {
     const user = await User.findById(userId);
     if (!user) {
-      return res.status(404).send("User not found");
+      return res.status(404).json({ message: "User not found" });
     }
 
     // Update user details
@@ -77,7 +82,7 @@ router.post("/updateUser", async (req, res) => {
     if (email) {
       const emailExists = await User.findOne({ email });
       if (emailExists && emailExists._id.toString() !== userId) {
-        return res.status(400).send("Email already exists");
+        return res.status(400).json({ message: "Email already exists" });
       }
       user.email = email;
     }
@@ -85,10 +90,13 @@ router.post("/updateUser", async (req, res) => {
     // Save the updated user
     await user.save();
 
-    res.status(200).send({ message: "User updated successfully", techPass });
+    res.status(200).json({ message: "User updated successfully", techPass });
   } catch (error) {
-    console.error(error);
-    res.status(500).send("Internal server error");
+    console.error("Error updating user:", error);
+    res.status(500).json({ 
+      message: "Internal server error",
+      error: error.message || "An unexpected error occurred"
+    });
   }
 });
 

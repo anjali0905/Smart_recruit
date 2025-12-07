@@ -9,18 +9,29 @@ const CommunicationLogin = ({ onLoginSuccess }) => {
   const [error, setError] = useState('');
 
   const handleInputChange = (e) => {
+    const value = e.target.name === 'secretKey' ? e.target.value.trim() : e.target.value;
     setFormData({
       ...formData,
-      [e.target.name]: e.target.value
+      [e.target.name]: value
     });
     setError(''); // Clear error when user types
   };
 
   const validateForm = () => {
-    if (!formData.secretKey.trim()) {
+    const trimmedSecretKey = formData.secretKey.trim();
+    
+    if (!trimmedSecretKey) {
       setError('Secret key is required');
       return false;
     }
+    
+    // Validate MongoDB ObjectId format (24 hex characters)
+    const objectIdPattern = /^[0-9a-fA-F]{24}$/;
+    if (!objectIdPattern.test(trimmedSecretKey)) {
+      setError('Invalid Secret Key format. Please check the Secret Key from your email.');
+      return false;
+    }
+    
     if (!formData.name.trim()) {
       setError('Name is required');
       return false;
@@ -43,10 +54,13 @@ const CommunicationLogin = ({ onLoginSuccess }) => {
 
     setLoading(true);
     try {
-      // Store the userId for future use
-      localStorage.setItem('userId', formData.secretKey);
-      localStorage.setItem('candidateName', formData.name);
-      localStorage.setItem('candidateEmail', formData.email);
+      // Trim and validate secret key
+      const trimmedSecretKey = formData.secretKey.trim();
+      
+      // Store the userId for future use (already validated in validateForm)
+      localStorage.setItem('userId', trimmedSecretKey);
+      localStorage.setItem('candidateName', formData.name.trim());
+      localStorage.setItem('candidateEmail', formData.email.trim());
 
       onLoginSuccess();
     } catch (error) {

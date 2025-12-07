@@ -23,7 +23,7 @@ router.post("/scanResume", async (req, res) => {
 
     const { GoogleGenerativeAI } = require("@google/generative-ai");
     const genAI = new GoogleGenerativeAI(process.env.GEN_AI_API_KEY);
-    const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
+    const model = genAI.getGenerativeModel({ model: "gemini-2.0-flash" });
 
     const combinedText = `${jobDesc}\n\nResume:\n${resumeContent}\n\n${addOnPrompt}`;
     const result = await model.generateContent(combinedText);
