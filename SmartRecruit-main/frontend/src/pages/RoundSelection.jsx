@@ -73,6 +73,7 @@ const RoundSelection = () => {
         aptitudeTime: roundDurations.aptitude,
         techTime: roundDurations.technical,
         hrTime: roundDurations.hrRound,
+        communicationTime: roundDurations.communication,
       });
       console.log(
         "Round times updated successfully in backend...:",
@@ -85,6 +86,13 @@ const RoundSelection = () => {
         localStorage.setItem(
           "aptitudeDuration",
           roundDurations.aptitude || "0"
+        );
+      }
+      if (selectedRounds.communication) {
+        localStorage.setItem("communication", true);
+        localStorage.setItem(
+          "communicationDuration",
+          roundDurations.communication || "0"
         );
       }
       if (selectedRounds.technical) {
@@ -102,6 +110,8 @@ const RoundSelection = () => {
       // Navigate based on selected round
       if (selectedRounds.aptitude) {
         navigate("/aptitudeInfo");
+      } else if (selectedRounds.communication) {
+        navigate("/communicationInfo");
       } else if (selectedRounds.technical) {
         navigate("/technicalInfo");
       } else if (selectedRounds.hrRound) {
@@ -171,13 +181,13 @@ const RoundSelection = () => {
             <div className="flex items-center space-x-4">
               <input
                 type="checkbox"
-                id="aptitude"
+                id="communication"
                 checked={selectedRounds.communication}
-                onChange={() => handleRoundChange("aptitude")}
+                onChange={() => handleRoundChange("communication")}
                 className="w-5 h-5 border-2 rounded text-blue-600 focus:ring-blue-500 cursor-pointer"
               />
               <label
-                htmlFor="aptitude"
+                htmlFor="communication"
                 className="text-xl font-medium text-gray-800 cursor-pointer"
               >
                Communication Round
@@ -186,14 +196,14 @@ const RoundSelection = () => {
             {selectedRounds.communication && (
               <div className="ml-8">
                 <label
-                  htmlFor="aptitudeTime"
+                  htmlFor="communicationTime"
                   className="block text-gray-600 text-sm font-medium"
                 >
                   Duration (in minutes):
                 </label>
                 <input
                   type="number"
-                  id="aptitudeTime"
+                  id="communicationTime"
                   step="5"
                   value={roundDurations.communication}
                   onChange={(e) =>

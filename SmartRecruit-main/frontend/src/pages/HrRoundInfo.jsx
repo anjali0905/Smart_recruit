@@ -83,7 +83,7 @@ export default function HRRoundInfo() {
     // For email links, use IP address so candidates on other devices can access
     // Keep HTTP for local development, only replace localhost with IP
     let frontendUrl = VITE_FRONTEND_URL || "http://localhost:5173";
-    const networkIP = import.meta.env.VITE_NETWORK_IP || "192.168.197.79";
+    const networkIP = import.meta.env.VITE_NETWORK_IP || "192.168.1.182";
     
     if (frontendUrl.includes("localhost") || frontendUrl.includes("127.0.0.1")) {
       // For emails, use IP address so others can access

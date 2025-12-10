@@ -338,15 +338,25 @@ const EmailModal = ({ isOpen, onClose, candidateEmail }) => {
 
     setIsSending(true);
     try {
-      await axios.post("/send-email", {
-        to: candidateEmail,
-        message,
-      });
+      // Use EmailJS to send email
+      const emailjs = (await import("@emailjs/browser")).default;
+      const serviceID = "service_k24gx2a";
+      const templateID = "template_beb6b3i";
+      const publicKey = "9BvLyWOUXCWd5o4lw";
+
+      const templateParams = {
+        to_email: candidateEmail,
+        message: message,
+        subject: "Message from Recruiter",
+        from_name: "Recruiter"
+      };
+
+      await emailjs.send(serviceID, templateID, templateParams, publicKey);
       alert("Email sent successfully");
       onClose();
     } catch (error) {
       console.error("Error sending email:", error);
-      alert("Failed to send email");
+      alert(`Failed to send email: ${error.message || "Please try again"}`);
     } finally {
       setIsSending(false);
     }

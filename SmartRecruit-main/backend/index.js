@@ -12,11 +12,19 @@ const corsOptions = {
   origin: [
     process.env.FRONTEND_URL,
     "http://localhost:5173",
+    "http://127.0.0.1:5173",
     "http://192.168.197.79:5173", // Network IP for candidates
+    "http://192.168.3.245:5173", // Network IP for candidates
+    "http://192.168.6.168:5173", // Previous network IP
+    "http://192.168.1.182:5173", // Current network IP
+    /^http:\/\/192\.168\.\d+\.\d+:5173$/, // Allow any 192.168.x.x network IP
+    /^http:\/\/10\.\d+\.\d+\.\d+:5173$/, // Allow 10.x.x.x network IPs
+    /^http:\/\/172\.(1[6-9]|2[0-9]|3[0-1])\.\d+\.\d+:5173$/, // Allow 172.16-31.x.x network IPs
     "https://smartrecruit.vercel.app", // for quick testing purpose included this hardcoded urls
   ],
   methods: ["GET", "POST", "PUT", "DELETE", "PATCH"],
   allowedHeaders: ["Content-Type", "Authorization", "multipart/form-data"],
+  credentials: true,
 };
 app.use(cors(corsOptions));
 
@@ -141,9 +149,11 @@ app.get("/", async (req, res) => {
 
 // Server setup
 const PORT = process.env.PORT || 4000;
-app.listen(PORT, () => {
+app.listen(PORT, '0.0.0.0', () => {
   console.log("Loaded PORT from .env:", process.env.PORT);
   console.log(`Server running on port ${PORT}`);
+  console.log(`Server accessible at: http://localhost:${PORT}`);
+  console.log(`Server accessible on network at: http://0.0.0.0:${PORT}`);
 });
 
 module.exports = app;

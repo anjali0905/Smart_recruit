@@ -125,9 +125,11 @@ const CommunicationInfo = () => {
       const data = await response.json();
 
       if (data.success) {
+        console.log('Communication questions saved successfully:', data);
         navigate('/techInfo');
       } else {
         console.error('Error saving questions:', data.message);
+        alert(`Failed to save questions: ${data.message || 'Please try again'}`);
       }
     } catch (error) {
       console.error('Error saving questions:', error);
@@ -175,11 +177,40 @@ const CommunicationInfo = () => {
         params: { prompt: generationPrompt }
       });
 
-      const data = Array.isArray(response.data)
-        ? response.data
-        : (Array.isArray(response.data?.[arrayKey])
-            ? response.data[arrayKey]
-            : (typeof response.data === 'string' ? [response.data] : []));
+      // Handle response - for readAndSpeak, it should be an array of objects with passage/questions
+      let data = [];
+      if (Array.isArray(response.data)) {
+        data = response.data;
+      } else if (Array.isArray(response.data?.[arrayKey])) {
+        data = response.data[arrayKey];
+      } else if (typeof response.data === 'string') {
+        data = [response.data];
+      } else if (response.data && typeof response.data === 'object') {
+        // If it's a single object (not array), wrap it in an array
+        data = [response.data];
+      }
+
+      // For readAndSpeak, ensure we preserve object structure if it exists
+      if (activeTab === 'readSpeak' && data.length > 0) {
+        // Check if first item is an object with passage property
+        if (typeof data[0] === 'object' && data[0] !== null && data[0].passage) {
+          // Good - it's already in the correct format
+          console.log("ReadAndSpeak data is in correct object format:", data[0]);
+        } else if (typeof data[0] === 'string') {
+          // Convert string to object format
+          console.warn("ReadAndSpeak returned string instead of object. Converting...");
+          data = data.map((item, idx) => {
+            if (typeof item === 'string') {
+              return {
+                passage: item,
+                questions: [],
+                instructions: "Read the passage aloud clearly."
+              };
+            }
+            return item;
+          });
+        }
+      }
 
       setGeneratedQuestions(prev => ({
         ...prev,

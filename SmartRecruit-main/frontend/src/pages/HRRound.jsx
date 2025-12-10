@@ -67,7 +67,7 @@ export default function HRRound() {
 
     // For email links, use IP address so candidates on other devices can access
     let host = window.location.host;
-    const networkIP = import.meta.env.VITE_NETWORK_IP || "192.168.197.79";
+    const networkIP = import.meta.env.VITE_NETWORK_IP || "192.168.1.182";
     
     // Replace localhost with network IP for email links
     if (host.includes("localhost") || host.includes("127.0.0.1")) {
@@ -94,17 +94,37 @@ export default function HRRound() {
     }
   };
 
+  // Helper function to get network-accessible URL
+  const getNetworkUrl = (path, queryParams = {}) => {
+    let host = window.location.host;
+    const networkIP = import.meta.env.VITE_NETWORK_IP || "192.168.1.182";
+    
+    // Replace localhost with network IP for sharing
+    if (host.includes("localhost") || host.includes("127.0.0.1")) {
+      host = host.replace("localhost", networkIP).replace("127.0.0.1", networkIP);
+    }
+    
+    const queryString = new URLSearchParams(queryParams).toString();
+    return `${window.location.protocol}//${host}${path}${queryString ? `?${queryString}` : ''}`;
+  };
+
   const tryJoinRoom = () => {
     if (!meetingContainerRef.current) return;
 
     // If kitToken present in URL (guest flow), use directly
     if (inviteKitToken) {
       try {
+        // Create network-accessible link for sharing
+        const shareUrl = getNetworkUrl(window.location.pathname, {
+          roomID: roomID,
+          kitToken: inviteKitToken
+        });
+        
         const zp = ZegoUIKitPrebuilt.create(inviteKitToken);
         zp.joinRoom({
           container: meetingContainerRef.current,
           sharedLinks: [
-            { name: "Copy link", url: window.location.href },
+            { name: "Copy link", url: shareUrl },
           ],
           scenario: { mode: ZegoUIKitPrebuilt.OneONoneCall },
         });
@@ -157,12 +177,18 @@ export default function HRRound() {
         setZegoError(typeof e === 'string' ? e : (e?.message || 'Unknown error'));
       }); } catch {}
 
+      // Create network-accessible link for sharing
+      const shareUrl = getNetworkUrl(window.location.pathname, {
+        roomID: roomID,
+        kitToken: kitToken
+      });
+      
       zp.joinRoom({
         container: meetingContainerRef.current,
         sharedLinks: [
           {
             name: "Copy link",
-            url: `${window.location.protocol}//${window.location.host}${window.location.pathname}?roomID=${roomID}&kitToken=${encodeURIComponent(kitToken)}`,
+            url: shareUrl,
           },
         ],
         scenario: { mode: ZegoUIKitPrebuilt.OneONoneCall },
